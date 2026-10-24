@@ -67,6 +67,10 @@ function Detail({ p, items, findBtn, pv, onBack, onUpdate, onDelete }: {
     useSensor(TouchSensor, { activationConstraint: { delay: 120, tolerance: 8 } }),
   );
 
+  // 음원 임시 주소를 미리 받아 둠(누르자마자 재생되어야 백그라운드 재생 유지)
+  const itemsKey = p.items.map((e) => e.btnId).join(',');
+  useEffect(() => { player.prepare(p).catch(() => {}); }, [itemsKey]);
+
   const active = pv.playlistId === p.id;
   const hasYouTube = p.items.some((e) => findBtn(e.btnId)?.source.kind === 'youtube');
   const nextRepeat: Record<Repeat, Repeat> = { off: 'all', all: 'one', one: 'off' };

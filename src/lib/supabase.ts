@@ -36,6 +36,16 @@ export async function removeAudio(path: string) {
   try { (await caches.open('player-audio')).delete(cacheKey(path)); } catch { /* 캐시 없음 */ }
 }
 
+// 재생목록용: 여러 음원의 임시 주소를 한 번에 받아 둔다(누른 순간 바로 재생해야 백그라운드가 유지됨)
+export async function signedUrls(paths: string[]): Promise<Record<string, string>> {
+  if (!paths.length) return {};
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(paths, 6 * 3600);
+  if (error || !data) return {};
+  const out: Record<string, string> = {};
+  for (const d of data) if (d.path && d.signedUrl) out[d.path] = d.signedUrl;
+  return out;
+}
+
 const cacheKey = (path: string) => `${location.origin}/__audio/${path}`;
 
 // 한 번 받은 음원은 기기에 저장해 두고 다음부터 바로 재생

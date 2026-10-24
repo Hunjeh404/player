@@ -1,5 +1,5 @@
 import type { Btn, Playlist } from '../types';
-import { fetchAudio } from './supabase';
+import { fetchAudio, signedUrls } from './supabase';
 import * as engine from './engine';
 
 // 재생목록 재생기. 단말 음원은 일반 오디오(<audio>)로 재생해야 화면이 꺼져도 이어진다.
@@ -29,6 +29,21 @@ let queue: string[] = []; // 랜덤 재생에서 이번 바퀴에 아직 안 나
 let endedFor = -1;
 let fadeTimer = 0;
 const urls = new Map<string, string>();
+const signed = new Map<string, { url: string; at: number }>();
+
+// 재생목록을 열 때 음원 임시 주소를 미리 받아 둔다
+export async function prepare(p: Playlist) {
+  const paths = p.items
+    .map((e) => getData().findBtn(e.btnId))
+    .flatMap((b) => (b?.source.kind === 'file' ? [b.source.path] : []))
+    .filter((path) => !urls.has(path) && !(signed.get(path) && Date.now() - signed.get(path)!.at < 5 * 3600e3));
+  const got = await signedUrls([...new Set(paths)]);
+  for (const [path, url] of Object.entries(got)) signed.set(path, { url, at: Date.now() });
+}
+function readyUrl(path: string): string | null {
+  const s = signed.get(path);
+  return urls.get(path) ?? (s && Date.now() - s.at < 5.5 * 3600e3 ? s.url : null);
+}
 
 const pl = () => getData().playlists.find((p) => p.id === view.playlistId) ?? null;
 const keysOf = (p: Playlist) => p.items.map((e) => e.key);
@@ -92,7 +107,8 @@ function stopMedia() {
 export function playFrom(playlistId: string, key?: string) {
   const p = getData().playlists.find((x) => x.id === playlistId);
   if (!p || !p.items.length) return;
-  unlock();
+  const session = (navigator as any).audioSession; // 아이폰: 백그라운드·무음 모드에서도 재생
+  if (session && session.type !== 'playback') session.type = 'playback';
   engine.stop(false); // 단일재생 정지
   const keys = keysOf(p);
   const k = key ?? (p.shuffle ? keys[Math.floor(Math.random() * keys.length)] : keys[0]);
@@ -123,8 +139,31 @@ async function start(key: string) {
   }
 
   kind = 'file';
+  const a = media();
+  const from = btn.clip.on ? btn.clip.start : 0;
+  const direct = readyUrl(btn.source.path);
+  if (direct) {
+    // 주소가 준비돼 있으면 기다리지 않고 바로 재생(누른 동작 안에서 시작해야 아이폰이 백그라운드에서 멈추지 않음)
+    unlocked = true;
+    a.src = from > 0 ? `${direct}#t=${from}` : direct;
+    a.volume = btn.fadeIn.on ? 0 : 1;
+    a.onloadedmetadata = () => { if (my === token && Math.abs(a.currentTime - from) > 0.3) a.currentTime = from; };
+    a.onerror = null;
+    a.play().then(() => {
+      if (my !== token) { a.pause(); return; }
+      endedFor = -1;
+      clearInterval(fadeTimer);
+      fadeTimer = window.setInterval(tick, 100);
+      emit({ loading: false, playing: true });
+      prefetchNext();
+    }).catch((e) => {
+      console.error(e);
+      if (my === token) { stop(); engine.showError('재생하지 못했습니다'); }
+    });
+    return;
+  }
+  unlock();
   try {
-    const a = media();
     const url = await urlFor(btn.source.path);
     if (my !== token) return;
     a.src = url;
