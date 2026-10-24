@@ -40,6 +40,9 @@ let ctx: AudioContext | null = null;
 const buffers = new Map<string, AudioBuffer>();
 
 function audioCtx() {
+  // 아이폰 무음 스위치가 켜져 있어도 소리가 나게(iOS 17 이상 Safari)
+  const session = (navigator as any).audioSession;
+  if (session && session.type !== 'playback') session.type = 'playback';
   if (!ctx) ctx = new AudioContext();
   if (ctx.state !== 'running') ctx.resume();
   return ctx;
