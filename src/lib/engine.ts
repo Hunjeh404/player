@@ -14,8 +14,13 @@ export const subscribe = (l: Listener) => { listeners.add(l); l(view); return ()
 let token = 0; // 누를 때마다 증가. 늦게 끝난 로딩이 새 재생을 덮지 않도록
 let stopCurrent: ((fade: boolean) => void) | null = null;
 
+// 단일재생을 시작할 때 재생목록을 멈추게 하는 연결
+let onSingleStart: (() => void) | null = null;
+export function setOnSingleStart(f: () => void) { onSingleStart = f; }
+
 export function toggle(btn: Btn) {
   if (view.id === btn.id) { stop(true); return; }
+  onSingleStart?.();
   stop(false);
   const my = ++token;
   emit({ id: btn.id, status: 'loading', error: null, ...(btn.source.kind === 'file' ? { ytVisible: false } : {}) });
@@ -34,6 +39,21 @@ export function stop(fade: boolean) {
 }
 
 export function clearError() { emit({ error: null }); }
+export function showError(msg: string) { emit({ error: msg }); }
+
+// 재생목록에서 유튜브 곡 재생(끝나면 onEnd)
+export function playForPlaylist(btn: Btn, onEnd: () => void, onError: () => void) {
+  stop(false);
+  const my = ++token;
+  emit({ id: btn.id, status: 'loading', error: null });
+  playYouTube(btn, my, onEnd).catch((e) => {
+    console.error(e);
+    if (my === token) { emit({ id: null, status: null, ytVisible: false }); onError(); }
+  });
+}
+let ytPlayer: any = null;
+export function ytPause() { ytPlayer?.pauseVideo(); }
+export function ytResume() { ytPlayer?.playVideo(); }
 
 // ---------- 단말 음원 ----------
 let ctx: AudioContext | null = null;
@@ -123,7 +143,7 @@ export function prepareYouTube(): Promise<any> {
       const p = new window.YT.Player(div, {
         width: '100%', height: '100%',
         playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
-        events: { onReady: () => resolve(p), onStateChange: (e: any) => ytStateHandler?.(e.data) },
+        events: { onReady: () => { ytPlayer = p; resolve(p); }, onStateChange: (e: any) => ytStateHandler?.(e.data) },
       });
     };
     if (window.YT?.Player) make();
@@ -143,7 +163,7 @@ let ytStateHandler: ((s: number) => void) | null = null;
 let ytSession = 0; // 새 유튜브 재생이 시작되면 이전 재생의 타이머는 손을 뗀다
 let ytTimer = 0;
 
-async function playYouTube(btn: Btn, my: number) {
+async function playYouTube(btn: Btn, my: number, onEnd?: () => void) {
   if (btn.source.kind !== 'youtube') return;
   emit({ ytVisible: true });
   const p = await prepareYouTube();
@@ -161,7 +181,7 @@ async function playYouTube(btn: Btn, my: number) {
   const finish = () => {
     clearInterval(ytTimer);
     ytStateHandler = null;
-    if (my === token) { stopCurrent = null; emit({ id: null, status: null, ytVisible: false }); }
+    if (my === token) { stopCurrent = null; emit({ id: null, status: null, ytVisible: false }); onEnd?.(); }
   };
   ytStateHandler = (s) => {
     if (s === 1 && my === token) emit({ status: 'playing' });

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDraggable, type DragEndEvent, type DragMoveEvent, type DragStartEvent } from '@dnd-kit/core';
-import { IconPlus, IconSettings, IconTrash, IconBrandYoutube, IconMusic, IconLoader2, IconPlayerStopFilled, IconBrandGoogle } from '@tabler/icons-react';
-import type { AppState, Btn, Folder, Item, Look } from './types';
+import { IconPlus, IconSettings, IconTrash, IconBrandYoutube, IconMusic, IconLoader2, IconPlayerStopFilled, IconBrandGoogle, IconLayoutGrid, IconPlaylist } from '@tabler/icons-react';
+import type { AppState, Btn, Folder, Item, Look, Playlist } from './types';
 import { ROOT, isFolder, findItem, locate, listOf, insert, remove, replace, applyDrop, dissolve, type Drop } from './lib/tree';
 import { supabase, loadState, saveState, removeAudio } from './lib/supabase';
 import { subscribe, toggle, stop, setYouTubeHost, prepareYouTube, clearError, type EngineView } from './lib/engine';
@@ -10,6 +10,8 @@ import { textOn } from './lib/themes';
 import { checkUpdate } from './lib/update';
 import Editor from './Editor';
 import Settings from './Settings';
+import PlaylistTab from './PlaylistTab';
+import * as player from './lib/playlist';
 
 export default function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -63,6 +65,17 @@ function Main({ session }: { session: Session }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [ev, setEv] = useState<EngineView>({ id: null, status: null, ytVisible: false, error: null });
   const loaded = useRef(false);
+  const [tab, setTab] = useState<'single' | 'playlist'>('single');
+  const stateRef = useRef<AppState | null>(null);
+  stateRef.current = state;
+
+  // 재생목록 재생기가 항상 최신 목록과 버튼을 보게 연결
+  useEffect(() => {
+    player.connect(() => {
+      const s = stateRef.current;
+      return { playlists: s?.playlists ?? [], findBtn: (id) => (s ? (findItem(s.buttons, id) as Btn | null) : null) };
+    });
+  }, []);
 
   useEffect(() => subscribe(setEv), []);
 
@@ -157,6 +170,8 @@ function Main({ session }: { session: Session }) {
     else {
       if (ev.id === it.id) stop(false);
       setItems((list) => remove(list, it.id));
+      // 재생목록에서도 빼기
+      setState((s) => (s ? { ...s, playlists: s.playlists.map((pl) => ({ ...pl, items: pl.items.filter((e) => e.btnId !== it.id) })) } : s));
       if (it.source.kind === 'file') removeAudio(it.source.path);
     }
     setConfirmDel(null);
@@ -168,6 +183,9 @@ function Main({ session }: { session: Session }) {
     if (oldPath && (b.source.kind !== 'file' || b.source.path !== oldPath)) removeAudio(oldPath);
     setEditorFor(null);
   };
+
+  const setPlaylists = (f: (list: Playlist[]) => Playlist[]) => setState((s) => (s ? { ...s, playlists: f(s.playlists) } : s));
+  const goTab = (t: 'single' | 'playlist') => { setTab(t); setEditing(false); setOpenFolder(null); };
 
   const renameFolder = (f: Folder, name: string) => setItems((list) => replace(list, { ...f, name: name.trim() || '폴더' }));
 
@@ -192,14 +210,19 @@ function Main({ session }: { session: Session }) {
   return (
     <div className="app" style={vars}>
       <header>
-        <h1>{editing ? '편집' : '음원재생기'}</h1>
+        <h1>{editing ? '편집' : tab === 'single' ? '음원재생기' : '재생목록'}</h1>
         {editing
           ? <button className="done" onClick={() => setEditing(false)}>완료</button>
           : <button className="icon" aria-label="설정" onClick={() => setSettingsOpen(true)}><IconSettings size={26} /></button>}
       </header>
       {editing && <p className="hint">버튼을 눌러 설정 변경, 끌어서 순서 이동, 다른 버튼 가운데에 놓으면 폴더, 휴지통에 놓아 삭제</p>}
 
-      <DndContext sensors={sensors} onDragStart={onDragStart} onDragMove={onDragMove} onDragCancel={endDrag} onDragEnd={onDragEnd}>
+      {tab === 'playlist' && (
+        <PlaylistTab items={items} playlists={state.playlists} onChange={setPlaylists}
+          findBtn={(id) => findItem(items, id) as Btn | null} />
+      )}
+
+      {tab === 'single' && <DndContext sensors={sensors} onDragStart={onDragStart} onDragMove={onDragMove} onDragCancel={endDrag} onDragEnd={onDragEnd}>
         <div className={`grid ${editing ? 'editing' : ''} ${look.cols >= 4 ? 'dense' : ''} ${look.cols === 1 ? 'one' : ''} ${endMark(ROOT)}`} data-drop-list={ROOT}>
           {items.map((it) => tile(it, ROOT))}
           {!editing && (
@@ -235,11 +258,18 @@ function Main({ session }: { session: Session }) {
             </div>
           )}
         </DragOverlay>
-      </DndContext>
+      </DndContext>}
+
+      {!editing && (
+        <nav className="tabs">
+          <button className={tab === 'single' ? 'on' : ''} onClick={() => goTab('single')}><IconLayoutGrid size={22} />단일재생</button>
+          <button className={tab === 'playlist' ? 'on' : ''} onClick={() => goTab('playlist')}><IconPlaylist size={22} />재생목록</button>
+        </nav>
+      )}
 
       <div className={`yt ${ev.ytVisible ? 'show' : ''}`}>
         <div className="yt-frame" ref={setYouTubeHost} />
-        <button className="yt-stop" aria-label="정지" onClick={() => stop(true)}><IconPlayerStopFilled size={22} /></button>
+        <button className="yt-stop" aria-label="정지" onClick={() => (player.isActive() ? player.stop() : stop(true))}><IconPlayerStopFilled size={22} /></button>
       </div>
 
       {(ev.error || saveErr) && (

@@ -15,7 +15,7 @@ export async function loadState(uid: string): Promise<AppState> {
   const { data, error } = await supabase.from('player_state').select('data').eq('user_id', uid).maybeSingle();
   if (error) throw error;
   const d = data?.data as Partial<AppState> | undefined;
-  return { look: { ...DEFAULT_LOOK, ...(d?.look ?? {}) }, buttons: d?.buttons ?? [] };
+  return { look: { ...DEFAULT_LOOK, ...(d?.look ?? {}) }, buttons: d?.buttons ?? [], playlists: d?.playlists ?? [] };
 }
 
 export async function saveState(uid: string, state: AppState) {
