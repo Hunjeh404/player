@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Btn, Source } from './types';
 import { uploadAudio } from './lib/supabase';
 import { parseYouTubeId } from './lib/engine';
@@ -21,6 +21,16 @@ export default function Editor({ uid, initial, onCancel, onSaved }: Props) {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // 입력하느라 키보드가 올라오며 밀린 화면을 닫을 때 원래 위치로 되돌림
+  useEffect(() => {
+    const y = window.scrollY;
+    return () => {
+      (document.activeElement as HTMLElement | null)?.blur();
+      window.scrollTo(0, y);
+      setTimeout(() => window.scrollTo(0, y), 300); // 키보드가 내려간 뒤 한 번 더
+    };
+  }, []);
 
   const oldFile = initial?.source.kind === 'file' ? initial.source : null;
   const fileLabel = file?.name ?? oldFile?.fileName ?? '선택한 파일 없음';
@@ -65,8 +75,8 @@ export default function Editor({ uid, initial, onCancel, onSaved }: Props) {
   };
 
   return (
-    <div className="modal-back">
-      <div className="sheet">
+    <div className="modal-back" onClick={() => !busy && onCancel()}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <h2>{initial ? '버튼 수정' : '버튼 추가'}</h2>
 
         <div className="seg">
