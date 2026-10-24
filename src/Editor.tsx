@@ -78,7 +78,7 @@ export default function Editor({ uid, initial, onCancel, onSaved }: Props) {
           <div className="field">
             <button className="pick" onClick={() => fileInput.current?.click()}>음원 선택</button>
             <span className="filename">{fileLabel}</span>
-            <input ref={fileInput} type="file" accept="audio/*" hidden onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <input ref={fileInput} type="file" accept=".mp3,.m4a,.wav,audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav" hidden onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           </div>
         ) : (
           <label className="field col">
