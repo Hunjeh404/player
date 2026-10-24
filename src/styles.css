@@ -17,7 +17,7 @@ header h1 { margin: 0; font-size: 22px; }
 .done { background: var(--fg); color: var(--bg); border: 0; border-radius: 999px; padding: 8px 18px; font-weight: 700; }
 .hint { margin: 0 16px 6px; font-size: 13px; opacity: .75; }
 
-.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 12px 16px; }
+.grid { display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: 14px; padding: 12px 16px; }
 .sbtn {
   position: relative; aspect-ratio: 1; min-width: 0; width: 100%;
   background: var(--btn); color: var(--btn-fg); border: 3px solid var(--border); border-radius: var(--radius);
@@ -34,6 +34,10 @@ header h1 { margin: 0; font-size: 22px; }
 .sbtn.playing { box-shadow: 0 0 0 4px var(--fg), 0 0 22px 4px var(--border); }
 .sbtn.playing .name { animation: pulse 1.2s ease-in-out infinite; }
 .sbtn.loading { opacity: .8; }
+.grid.dense { gap: 10px; }
+.grid.dense .sbtn { padding: 6px; }
+.grid.dense .sbtn .kind { display: none; }
+.grid.dense .sbtn .name { font-size: 13px; }
 .sbtn.add { background: transparent; color: var(--fg); border: 3px dashed var(--fg); opacity: .55; }
 
 .grid.editing .sbtn { touch-action: none; animation: wiggle .28s ease-in-out infinite alternate; }

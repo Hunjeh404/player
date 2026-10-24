@@ -18,7 +18,7 @@ export const THEMES: Theme[] = [
   { id: 'wine', name: '와인', bg: '#2B1516', button: '#955251', border: '#E0B3AF' },
 ];
 
-export const DEFAULT_LOOK: Look = { themeId: 'blue', bg: '#0A2A47', button: '#0F4C81', border: '#9CC3E6', shape: 'rounded' };
+export const DEFAULT_LOOK: Look = { themeId: 'blue', bg: '#0A2A47', button: '#0F4C81', border: '#9CC3E6', shape: 'rounded', cols: 3 };
 
 export function hexToRgb(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1), 16);

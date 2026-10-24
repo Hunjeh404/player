@@ -55,6 +55,13 @@ export default function Settings({ look, email, onChange, onClose }: Props) {
           ))}
         </div>
 
+        <h3>가로 버튼 수</h3>
+        <div className="seg">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button key={n} className={look.cols === n ? 'on' : ''} onClick={() => onChange({ ...look, cols: n })}>{n}개</button>
+          ))}
+        </div>
+
         <h3>계정</h3>
         <div className="field">
           <span className="filename">{email}</span>

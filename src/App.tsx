@@ -129,7 +129,7 @@ function Main({ session }: { session: Session }) {
 
   const vars = {
     '--bg': look.bg, '--fg': textOn(look.bg), '--btn': look.button, '--btn-fg': textOn(look.button), '--border': look.border,
-    '--radius': look.shape === 'circle' ? '50%' : look.shape === 'rounded' ? '22%' : '6px',
+    '--cols': look.cols, '--radius': look.shape === 'circle' ? '50%' : look.shape === 'rounded' ? '22%' : '6px',
   } as CSSProperties;
 
   return (
@@ -146,7 +146,7 @@ function Main({ session }: { session: Session }) {
         onDragStart={() => setDragging(true)} onDragMove={(e) => setOverTrash(pointerOnTrash(e))}
         onDragCancel={() => { setDragging(false); setOverTrash(false); }} onDragEnd={onDragEnd}>
         <SortableContext items={state.buttons.map((b) => b.id)} strategy={rectSortingStrategy}>
-          <div className={`grid ${editing ? 'editing' : ''}`}>
+          <div className={`grid ${editing ? 'editing' : ''} ${look.cols >= 4 ? 'dense' : ''}`}>
             {state.buttons.map((b) => (
               <SoundButton key={b.id} btn={b} editing={editing}
                 status={ev.id === b.id ? ev.status : null}

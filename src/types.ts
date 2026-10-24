@@ -19,6 +19,7 @@ export interface Look {
   button: string;
   border: string;
   shape: Shape;
+  cols: number;
 }
 
 export interface AppState {
