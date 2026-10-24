@@ -13,6 +13,15 @@ export interface Btn {
   fadeOut: { on: boolean; sec: number };
 }
 
+export interface Folder {
+  id: string;
+  kind: 'folder';
+  name: string;
+  children: Btn[];
+}
+
+export type Item = Btn | Folder;
+
 export interface Look {
   themeId: string | null;
   bg: string;
@@ -24,5 +33,5 @@ export interface Look {
 
 export interface AppState {
   look: Look;
-  buttons: Btn[];
+  buttons: Item[]; // 버튼과 폴더(폴더 안에는 버튼만)
 }
