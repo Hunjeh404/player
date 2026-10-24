@@ -22,7 +22,7 @@ export function toggle(btn: Btn) {
   const run = btn.source.kind === 'file' ? playFile(btn, my) : playYouTube(btn, my);
   run.catch((e) => {
     console.error(e);
-    if (my === token) emit({ id: null, status: null, error: '재생하지 못했습니다' });
+    if (my === token) emit({ id: null, status: null, ytVisible: false, error: '재생하지 못했습니다' });
   });
 }
 

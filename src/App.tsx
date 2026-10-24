@@ -63,10 +63,8 @@ function Main({ session }: { session: Session }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [ev, setEv] = useState<EngineView>({ id: null, status: null, ytVisible: false, error: null });
   const loaded = useRef(false);
-  const ytRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => subscribe(setEv), []);
-  useEffect(() => { setYouTubeHost(ytRef.current); }, []);
 
   useEffect(() => {
     loadState(uid).then((s) => { setState(s); loaded.current = true; }).catch(() => setLoadErr(true));
@@ -240,7 +238,7 @@ function Main({ session }: { session: Session }) {
       </DndContext>
 
       <div className={`yt ${ev.ytVisible ? 'show' : ''}`}>
-        <div className="yt-frame" ref={ytRef} />
+        <div className="yt-frame" ref={setYouTubeHost} />
         <button className="yt-stop" aria-label="정지" onClick={() => stop(true)}><IconPlayerStopFilled size={22} /></button>
       </div>
 
