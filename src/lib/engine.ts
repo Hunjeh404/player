@@ -3,10 +3,10 @@ import { fetchAudio } from './supabase';
 
 // 한 번에 하나만 재생. 단말 음원은 Web Audio(정확한 구간·페이드), 유튜브는 IFrame 플레이어.
 export type Status = 'loading' | 'playing';
-export interface EngineView { id: string | null; status: Status | null; ytVisible: boolean; error: string | null }
+export interface EngineView { id: string | null; status: Status | null; ytVisible: boolean; error: string | null; paused: boolean }
 
 type Listener = (v: EngineView) => void;
-let view: EngineView = { id: null, status: null, ytVisible: false, error: null };
+let view: EngineView = { id: null, status: null, ytVisible: false, error: null, paused: false };
 const listeners = new Set<Listener>();
 const emit = (patch: Partial<EngineView>) => { view = { ...view, ...patch }; listeners.forEach((l) => l(view)); };
 export const subscribe = (l: Listener) => { listeners.add(l); l(view); return () => { listeners.delete(l); }; };
@@ -23,7 +23,7 @@ export function toggle(btn: Btn) {
   onSingleStart?.();
   stop(false);
   const my = ++token;
-  emit({ id: btn.id, status: 'loading', error: null, ...(btn.source.kind === 'file' ? { ytVisible: false } : {}) });
+  emit({ id: btn.id, status: 'loading', error: null, paused: false, ...(btn.source.kind === 'file' ? { ytVisible: false } : {}) });
   const run = btn.source.kind === 'file' ? playFile(btn, my) : playYouTube(btn, my);
   run.catch((e) => {
     console.error(e);
@@ -35,7 +35,7 @@ export function stop(fade: boolean) {
   token++;
   const s = stopCurrent; stopCurrent = null;
   s?.(fade);
-  emit({ id: null, status: null });
+  emit({ id: null, status: null, paused: false });
 }
 
 export function clearError() { emit({ error: null }); }
@@ -54,6 +54,14 @@ export function playForPlaylist(btn: Btn, onEnd: () => void, onError: () => void
 let ytPlayer: any = null;
 export function ytPause() { ytPlayer?.pauseVideo(); }
 export function ytResume() { ytPlayer?.playVideo(); }
+export function ytSeek(t: number) { ytPlayer?.seekTo(t, true); }
+let ytBtn: Btn | null = null;
+export function ytPos() {
+  const b = ytBtn;
+  const from = b?.clip.on ? b.clip.start : 0;
+  const end = b?.clip.on && b.clip.end > from ? b.clip.end : (ytPlayer?.getDuration?.() || 0);
+  return { pos: ytPlayer?.getCurrentTime?.() || 0, start: from, end };
+}
 
 // ---------- 단말 음원 ----------
 let ctx: AudioContext | null = null;
@@ -68,6 +76,9 @@ function audioCtx() {
   return ctx;
 }
 
+// 지금 재생 중인 단말 음원(위치 계산·일시정지·이동용)
+let fileCur: { btn: Btn; buf: AudioBuffer; src: AudioBufferSourceNode; gain: GainNode; t0: number; offset: number; from: number; to: number } | null = null;
+
 async function playFile(btn: Btn, my: number) {
   if (btn.source.kind !== 'file') return;
   const c = audioCtx(); // 누른 순간(사용자 동작 안)에 열어야 소리가 남
@@ -79,13 +90,21 @@ async function playFile(btn: Btn, my: number) {
     buffers.set(path, buf);
   }
   if (my !== token) return;
+  const from = btn.clip.on ? Math.min(btn.clip.start, buf.duration) : 0;
+  startSource(btn, buf, from, true, my);
+  emit({ status: 'playing', paused: false });
+}
 
+// offset 위치부터 재생(처음 시작과 막대로 이동할 때 공용)
+function startSource(btn: Btn, buf: AudioBuffer, offset: number, withFadeIn: boolean, my: number) {
+  const c = ctx!;
   const dur = buf.duration;
   const from = btn.clip.on ? Math.min(btn.clip.start, dur) : 0;
   const to = btn.clip.on && btn.clip.end > from ? Math.min(btn.clip.end, dur) : dur;
-  const len = Math.max(0.05, to - from);
-  const fi = btn.fadeIn.on ? Math.min(btn.fadeIn.sec, len) : 0;
-  const fo = btn.fadeOut.on ? Math.min(btn.fadeOut.sec, len) : 0;
+  const start = Math.max(from, Math.min(offset, to - 0.05));
+  const len = Math.max(0.05, to - start);
+  const fi = withFadeIn && btn.fadeIn.on ? Math.min(btn.fadeIn.sec, len) : 0;
+  const fo = btn.fadeOut.on ? btn.fadeOut.sec : 0;
 
   const src = c.createBufferSource();
   src.buffer = buf;
@@ -94,19 +113,66 @@ async function playFile(btn: Btn, my: number) {
   const t0 = c.currentTime + 0.03;
   const g = gain.gain;
   if (fi > 0) { g.setValueAtTime(0, t0); g.linearRampToValueAtTime(1, t0 + fi); } else g.setValueAtTime(1, t0);
-  if (fo > 0) { g.setValueAtTime(1, Math.max(t0 + fi, t0 + len - fo)); g.linearRampToValueAtTime(0, t0 + len); }
-  src.start(t0, from, len);
+  if (fo > 0) {
+    if (len > fo) { g.setValueAtTime(1, Math.max(t0 + fi, t0 + len - fo)); }
+    else g.setValueAtTime(len / fo, t0);
+    g.linearRampToValueAtTime(0, t0 + len);
+  }
+  src.start(t0, start, len);
 
-  const mine = my;
-  src.onended = () => { if (mine === token) { stopCurrent = null; emit({ id: null, status: null }); } };
+  const cur = { btn, buf, src, gain, t0, offset: start, from, to };
+  fileCur = cur;
+  src.onended = () => {
+    if (fileCur !== cur) return; // 이동하느라 멈춘 것
+    fileCur = null;
+    if (my === token) { stopCurrent = null; emit({ id: null, status: null, paused: false }); }
+  };
   stopCurrent = (fade) => {
+    if (fileCur === cur) fileCur = null;
+    if (c.state === 'suspended') c.resume();
     const now = c.currentTime;
     const sec = fade && btn.fadeOut.on ? btn.fadeOut.sec : 0;
     g.cancelScheduledValues(now);
     if (sec > 0) { g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(0, now + sec); src.stop(now + sec); }
     else src.stop();
   };
-  emit({ status: 'playing' });
+}
+
+// ---------- 재생바용: 위치·일시정지·이동 ----------
+export interface Now { btn: Btn; pos: number; start: number; end: number; paused: boolean }
+
+export function now(): Now | null {
+  if (!view.id) return null;
+  if (fileCur && ctx) {
+    const pos = Math.min(fileCur.to, fileCur.offset + Math.max(0, ctx.currentTime - fileCur.t0));
+    return { btn: fileCur.btn, pos, start: fileCur.from, end: fileCur.to, paused: view.paused };
+  }
+  if (ytBtn && ytPlayer && view.ytVisible) return { btn: ytBtn, ...ytPos(), paused: view.paused };
+  return null;
+}
+
+export function pause() {
+  if (fileCur && ctx) ctx.suspend();
+  else ytPlayer?.pauseVideo();
+  emit({ paused: true });
+}
+
+export function resume() {
+  if (fileCur && ctx) ctx.resume();
+  else ytPlayer?.playVideo();
+  emit({ paused: false });
+}
+
+export function seek(t: number) {
+  if (fileCur && ctx) {
+    const old = fileCur;
+    fileCur = null;
+    old.src.onended = null;
+    old.src.stop();
+    startSource(old.btn, old.buf, t, false, token);
+    return;
+  }
+  ytSeek(t);
 }
 
 // ---------- 유튜브 ----------
@@ -170,6 +236,7 @@ async function playYouTube(btn: Btn, my: number, onEnd?: () => void) {
   if (my !== token) return;
   clearInterval(ytTimer);
   const session = ++ytSession;
+  ytBtn = btn;
 
   const from = btn.clip.on ? btn.clip.start : 0;
   const hasEnd = btn.clip.on && btn.clip.end > from;

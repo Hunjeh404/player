@@ -223,6 +223,25 @@ function goNext(auto: boolean) {
 
 export function next() { goNext(false); }
 
+// 재생바용
+export function now(): (engine.Now & { playlistName: string }) | null {
+  const p = pl();
+  if (!p || !cur) return null;
+  if (kind === 'file' && audio) {
+    const from = cur.clip.on ? cur.clip.start : 0;
+    const d = audio.duration || 0;
+    const end = cur.clip.on && cur.clip.end > from ? Math.min(cur.clip.end, d || Infinity) : d;
+    return { btn: cur, pos: audio.currentTime, start: from, end, paused: !view.playing, playlistName: p.name };
+  }
+  if (kind === 'youtube') return { btn: cur, ...engine.ytPos(), paused: !view.playing, playlistName: p.name };
+  return { btn: cur, pos: 0, start: 0, end: 0, paused: !view.playing, playlistName: p.name };
+}
+
+export function seek(t: number) {
+  if (kind === 'file' && audio) audio.currentTime = t;
+  else if (kind === 'youtube') engine.ytSeek(t);
+}
+
 export function prev() {
   const p = pl();
   if (!p || !view.key) return;

@@ -10,7 +10,7 @@ input { font: inherit; }
 .login h1 { margin: 0; font-size: 28px; }
 .google { display: flex; align-items: center; gap: 10px; padding: 14px 22px; border-radius: 999px; border: 0; background: #fff; color: #222; font-weight: 600; font-size: 16px; }
 
-.app { min-height: 100%; background: var(--bg); color: var(--fg); padding: env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 290px); }
+.app { min-height: 100%; background: var(--bg); color: var(--fg); padding: env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 350px); }
 header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 6px; }
 header h1 { margin: 0; font-size: 22px; }
 .icon { background: none; border: 0; padding: 6px; display: grid; }
@@ -58,9 +58,9 @@ header h1 { margin: 0; font-size: 22px; }
 .trash.over { scale: 1.25; }
 
 .yt {
-  position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 74px); max-width: 420px; margin: 0 auto;
+  position: fixed; left: 12px; right: 12px; bottom: calc(env(safe-area-inset-bottom) + 130px); max-width: 420px; margin: 0 auto;
   height: 200px; border-radius: 14px; overflow: hidden; background: #000; z-index: 4;
-  transform: translateY(340px); transition: transform .25s; display: flex;
+  transform: translateY(420px); transition: transform .25s; display: flex;
 }
 .yt.show { transform: none; }
 .yt-frame { flex: 1; min-width: 200px; }
@@ -158,9 +158,9 @@ header h1 { margin: 0; font-size: 22px; }
 /* 탭 */
 .tabs {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: flex;
-  padding: 6px 8px calc(env(safe-area-inset-bottom) + 6px); background: var(--bg); border-top: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
+  padding: 4px 8px calc(env(safe-area-inset-bottom) + 4px); background: var(--bg); border-top: 1px solid color-mix(in srgb, var(--fg) 18%, transparent);
 }
-.tabs button { flex: 1; border: 0; background: none; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px; font-size: 12px; color: var(--fg); opacity: .5; }
+.tabs button { flex: 1; height: 52px; border: 0; background: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0; font-size: 12px; color: var(--fg); opacity: .5; }
 .tabs button.on { opacity: 1; font-weight: 700; }
 
 /* 재생목록 */
@@ -206,3 +206,29 @@ header h1 { margin: 0; font-size: 22px; }
 .pick-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .folder-pick { font-weight: 700; margin-top: 12px; }
 .sub-pick { padding-left: 26px; font-size: 15px; }
+
+/* 재생바(탭 바 바로 위) */
+.mini-player {
+  position: fixed; left: 0; right: 0; bottom: env(safe-area-inset-bottom); z-index: 7; height: 58px;
+  background: color-mix(in srgb, var(--btn) 55%, var(--bg)); color: var(--fg);
+}
+.mini-player.raised { bottom: calc(env(safe-area-inset-bottom) + 60px); }
+.mp-progress {
+  position: absolute; left: 0; right: 0; top: -9px; width: 100%; height: 18px; margin: 0; background: transparent;
+  -webkit-appearance: none; appearance: none; touch-action: none; cursor: pointer;
+}
+.mp-progress::-webkit-slider-runnable-track {
+  height: 4px; background: linear-gradient(to right, var(--fg) var(--p), color-mix(in srgb, var(--fg) 25%, transparent) var(--p));
+}
+.mp-progress::-moz-range-track { height: 4px; background: color-mix(in srgb, var(--fg) 25%, transparent); }
+.mp-progress::-moz-range-progress { height: 4px; background: var(--fg); }
+.mp-progress::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%; background: var(--fg); }
+.mp-progress::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--fg); }
+.mp-progress:disabled::-webkit-slider-thumb { visibility: hidden; }
+.mp-row { height: 100%; display: flex; align-items: center; gap: 10px; padding: 4px 8px 0 14px; }
+.mp-kind { display: grid; opacity: .8; }
+.mp-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mp-title { font-weight: 700; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-sub { font-size: 12px; opacity: .7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mp-btn { border: 0; background: none; color: var(--fg); width: 44px; height: 44px; display: grid; place-items: center; }
+.mp-btn:disabled { opacity: .4; }

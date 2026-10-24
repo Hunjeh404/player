@@ -11,6 +11,7 @@ import { checkUpdate } from './lib/update';
 import Editor from './Editor';
 import Settings from './Settings';
 import PlaylistTab from './PlaylistTab';
+import MiniPlayer from './MiniPlayer';
 import * as player from './lib/playlist';
 
 export default function App() {
@@ -63,7 +64,7 @@ function Main({ session }: { session: Session }) {
   const [drop, setDrop] = useState<Drop | null>(null);
   const [folderAway, setFolderAway] = useState(false); // 폴더 밖으로 끌고 나가면 폴더 창을 잠시 감춤
   const panelRef = useRef<HTMLDivElement>(null);
-  const [ev, setEv] = useState<EngineView>({ id: null, status: null, ytVisible: false, error: null });
+  const [ev, setEv] = useState<EngineView>({ id: null, status: null, ytVisible: false, error: null, paused: false });
   const loaded = useRef(false);
   const [tab, setTab] = useState<'single' | 'playlist'>('single');
   const stateRef = useRef<AppState | null>(null);
@@ -78,6 +79,8 @@ function Main({ session }: { session: Session }) {
   }, []);
 
   useEffect(() => subscribe(setEv), []);
+  const [pv, setPv] = useState<player.PlView>({ playlistId: null, key: null, playing: false, loading: false });
+  useEffect(() => player.subscribe(setPv), []);
 
   useEffect(() => {
     loadState(uid).then((s) => { setState(s); loaded.current = true; }).catch(() => setLoadErr(true));
@@ -259,6 +262,8 @@ function Main({ session }: { session: Session }) {
           )}
         </DragOverlay>
       </DndContext>}
+
+      <MiniPlayer ev={ev} pv={pv} raised={!editing} findBtn={(id) => findItem(items, id) as Btn | null} />
 
       {!editing && (
         <nav className="tabs">
