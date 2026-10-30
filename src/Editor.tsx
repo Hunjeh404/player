@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Btn, Source } from './types';
-import { uploadAudio } from './lib/supabase';
+import type { Btn, Folder, Source } from './types';
+import { uploadAudio, removeAudio } from './lib/supabase';
+import { readZipAudio, type ZipAudio } from './lib/zip';
 import { parseYouTubeId } from './lib/engine';
 import { parseTime, formatTime } from './lib/time';
 
-interface Props { uid: string; initial: Btn | null; onCancel: () => void; onSaved: (b: Btn, oldPath: string | null) => void }
+interface Props {
+  uid: string; initial: Btn | null; onCancel: () => void; onSaved: (b: Btn, oldPath: string | null) => void;
+  allowZip: boolean; onSavedFolder: (f: Folder) => void;
+}
 
-export default function Editor({ uid, initial, onCancel, onSaved }: Props) {
-  const [kind, setKind] = useState<Source['kind']>(initial?.source.kind ?? 'file');
+export default function Editor({ uid, initial, onCancel, onSaved, allowZip, onSavedFolder }: Props) {
+  const [kind, setKind] = useState<Source['kind'] | 'zip'>(initial?.source.kind ?? 'file');
+  const [zip, setZip] = useState<{ fileName: string; folderName: string; items: ZipAudio[] } | null>(null);
+  const [progress, setProgress] = useState('');
+  const zipInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState(initial?.source.kind === 'youtube' ? initial.source.url : '');
   const [name, setName] = useState(initial?.name ?? '');
@@ -35,8 +42,49 @@ export default function Editor({ uid, initial, onCancel, onSaved }: Props) {
   const oldFile = initial?.source.kind === 'file' ? initial.source : null;
   const fileLabel = file?.name ?? oldFile?.fileName ?? '선택한 파일 없음';
 
+  const pickZip = async (f: File | undefined) => {
+    setErr(''); setZip(null);
+    if (!f) return;
+    try {
+      const z = await readZipAudio(f);
+      if (!z.items.length) return setErr('압축파일 안에 음원이 없습니다');
+      setZip({ fileName: f.name, ...z });
+    } catch (x) {
+      console.error(x);
+      setErr('압축파일을 열지 못했습니다');
+    }
+  };
+
+  // 압축파일: 음원을 하나씩 올리고, 압축파일 이름의 폴더로 묶는다
+  const saveZip = async () => {
+    if (!zip) return setErr('압축파일을 선택해 주세요');
+    const big = zip.items.find((x) => x.file.size > 50 * 1024 * 1024);
+    if (big) return setErr(`${big.file.name}: 파일은 50MB까지 올릴 수 있습니다`);
+    setBusy(true);
+    const done: string[] = [];
+    try {
+      const children: Btn[] = [];
+      for (const [i, it] of zip.items.entries()) {
+        setProgress(`${i + 1}/${zip.items.length}`);
+        const path = await uploadAudio(uid, it.file);
+        done.push(path);
+        children.push({
+          id: crypto.randomUUID(), name: it.name, source: { kind: 'file', path, fileName: it.file.name },
+          clip: { on: false, start: 0, end: 0 }, fadeIn: { on: false, sec: 2 }, fadeOut: { on: false, sec: 2 },
+        });
+      }
+      onSavedFolder({ id: crypto.randomUUID(), kind: 'folder', name: zip.folderName, children });
+    } catch (x) {
+      console.error(x);
+      done.forEach((p) => removeAudio(p)); // 중간에 실패하면 올린 것 되돌림
+      setErr('파일을 올리지 못했습니다');
+      setBusy(false); setProgress('');
+    }
+  };
+
   const save = async () => {
     setErr('');
+    if (kind === 'zip') return saveZip();
     if (!name.trim()) return setErr('이름을 입력해 주세요');
     let videoId = '';
     if (kind === 'youtube') {
@@ -82,9 +130,19 @@ export default function Editor({ uid, initial, onCancel, onSaved }: Props) {
         <div className="seg">
           <button className={kind === 'file' ? 'on' : ''} onClick={() => setKind('file')}>단말 음원</button>
           <button className={kind === 'youtube' ? 'on' : ''} onClick={() => setKind('youtube')}>유튜브</button>
+          {allowZip && <button className={kind === 'zip' ? 'on' : ''} onClick={() => setKind('zip')}>압축파일</button>}
         </div>
 
-        {kind === 'file' ? (
+        {kind === 'zip' ? (
+          <>
+            <div className="field">
+              <button className="pick" onClick={() => zipInput.current?.click()}>압축파일 선택</button>
+              <span className="filename">{zip?.fileName ?? '선택한 파일 없음'}</span>
+              <input ref={zipInput} type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden onChange={(e) => pickZip(e.target.files?.[0])} />
+            </div>
+            {zip && <p className="filename">‘{zip.folderName}’ 폴더에 음원 {zip.items.length}개를 추가합니다</p>}
+          </>
+        ) : kind === 'file' ? (
           <div className="field">
             <button className="pick" onClick={() => fileInput.current?.click()}>음원 선택</button>
             <span className="filename">{fileLabel}</span>
@@ -97,6 +155,7 @@ export default function Editor({ uid, initial, onCancel, onSaved }: Props) {
           </label>
         )}
 
+        {kind !== 'zip' && <>
         <label className="field col">
           <span>이름</span>
           <input value={name} onChange={(e) => setName(e.target.value)} />
@@ -121,11 +180,12 @@ export default function Editor({ uid, initial, onCancel, onSaved }: Props) {
         {foOn && (
           <div className="field sub"><input className="time" inputMode="decimal" value={fo} onChange={(e) => setFo(e.target.value)} /><span>초</span></div>
         )}
+        </>}
 
         {err && <p className="err">{err}</p>}
         <div className="row-end">
           <button onClick={onCancel} disabled={busy}>취소</button>
-          <button className="primary" onClick={save} disabled={busy}>{busy ? '올리는 중…' : '저장'}</button>
+          <button className="primary" onClick={save} disabled={busy}>{busy ? `올리는 중…${progress ? ' ' + progress : ''}` : '저장'}</button>
         </div>
       </div>
     </div>

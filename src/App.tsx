@@ -281,7 +281,9 @@ function Main({ session }: { session: Session }) {
         <div className="toast" onClick={() => { clearError(); setSaveErr(false); }}>{ev.error ?? '서버에 저장하지 못했습니다'}</div>
       )}
 
-      {editorFor && <Editor uid={uid} initial={editorFor.btn} onCancel={() => setEditorFor(null)} onSaved={onSaved} />}
+      {editorFor && <Editor uid={uid} initial={editorFor.btn} onCancel={() => setEditorFor(null)} onSaved={onSaved}
+        allowZip={!editorFor.btn && editorFor.scope === ROOT}
+        onSavedFolder={(f) => { setItems((list) => [...list, f]); setEditorFor(null); }} />}
       {settingsOpen && <Settings look={look} email={session.user.email ?? ''} onChange={setLook} onClose={() => setSettingsOpen(false)} />}
       {confirmDel && (
         <div className="modal-back" onClick={() => setConfirmDel(null)}>
